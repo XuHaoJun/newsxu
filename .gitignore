@@ -1,0 +1,5 @@
+yahoonews-server/client/node_modules
+yahoonews-server/client/npm-debug.log
+yahoonews-server/public/assets/js/bundle.js
+yahoonews-server/public/assets/css/bundle.css
+yahoonews-server/client/src/js/View/*.js

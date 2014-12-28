@@ -1,0 +1,33 @@
+{
+  "name": "newsxu",
+  "version": "0.0.1",
+  "description": "newsxu client",
+  "scripts": {
+    "build": "echo build time; node node_modules/gulp/bin/gulp.js build"
+  },
+  "dependencies": {
+    "lodash": "*",
+    "react": "*",
+    "jquery": "*",
+    "bootstrap": "*",
+    "react-bootstrap": "*",
+
+    "gulp": "*",
+    "browserify": "*",
+    "yargs": "*",
+    "gulp-autoprefixer": "*",
+    "gulp-concat": "*",
+    "gulp-minify-css": "*",
+    "gulp-notify": "*",
+    "gulp-plumber": "*",
+    "gulp-react": "*",
+    "gulp-streamify": "*",
+    "gulp-stylus": "*",
+    "gulp-uglify": "*",
+    "gulp-util": "*",
+    "reactify": "*",
+    "uglifyify": "*",
+    "vinyl-source-stream": "*",
+    "watchify": "*"
+  }
+}

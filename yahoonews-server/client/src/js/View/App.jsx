@@ -42,7 +42,6 @@ module.exports = React.createClass({
       console.log(data);
       this.setState({newss: data.newss, searchUsedTime: data.searchUsedTime});
     }.bind(this));
-    this.refs.searchInput.getDOMNode().value = '';
   },
 
   toNews: function(news) {

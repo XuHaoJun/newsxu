@@ -25,6 +25,7 @@ type YahooNews struct {
 func yahooNewURLs(url string) []string {
 	doc, err := goquery.NewDocument(url)
 	if err != nil {
+    log.Println(err)
 		return []string{}
 	}
 	result := doc.Find(".yom-list-wide li").Map(func(i int, s *goquery.Selection) string {
@@ -101,6 +102,12 @@ func yahooNewContent(url string) *YahooNews {
 }
 
 func downloadYahooNews() {
+	session, err := mgo.Dial("127.0.0.1")
+	if err != nil {
+		panic(err)
+	}
+	defer session.Close()
+
 	// 下載新聞
 	log.Println("開始下載新聞 每次連接間隔時間： 0.1s")
 	startTime := time.Now()
@@ -113,11 +120,6 @@ func downloadYahooNews() {
 		}(index, url)
 	}
 
-	session, err := mgo.Dial("127.0.0.1")
-	if err != nil {
-		panic(err)
-	}
-	defer session.Close()
 	c := session.DB("sego").C("yahooNews")
 
 	for i := 0; i < len(urls); i++ {
@@ -145,8 +147,8 @@ func downloadYahooNews() {
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	downloadYahooNews()
-	c := time.Tick(2 * time.Hour)
-	for range c {
+	tick := time.Tick(2 * time.Hour)
+	for range tick {
 		go downloadYahooNews()
 	}
 }

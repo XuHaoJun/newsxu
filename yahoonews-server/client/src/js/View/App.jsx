@@ -10,8 +10,8 @@ var Row = BS.Row;
 var Colm = BS.Col;
 var Button = BS.Button;
 var Glyphicon = BS.Glyphicon;
-/* var OverlayTrigger = BS.OverlayTrigger;
-   var Popover = BS.Popover; */
+var OverlayTrigger = BS.OverlayTrigger;
+var Popover = BS.Popover;
 var ListGroup = BS.ListGroup;
 var ListGroupItem = BS.ListGroupItem;
 
@@ -40,15 +40,15 @@ module.exports = React.createClass({
     console.log(searchText);
     $.getJSON('/json', {text: searchText}, function(data) {
       console.log(data);
-      this.setState({newss: data.newss, searchUsedTime: data.searchUsedTime});
+      this.setState(data);
     }.bind(this));
   },
 
   toNews: function(news) {
     return (
-      <ListGroupItem key={news.title} href={news.url}>
+      <ListGroupItem key={news.url+news.provider} href={news.url}>
         <h3 className="news-title"> { news.title } </h3>
-        <small>{news.provider} - {news.postTime}</small>
+        <small>{news.provider} - {news.postTime}      權重: {news.weight}</small>
       </ListGroupItem>
     );
   },
@@ -65,6 +65,17 @@ module.exports = React.createClass({
     }
   },
 
+  renderQueryWeights: function() {
+    var str = JSON.stringify(this.state.queryWeights, undefined, 2).replace(/\n/g, "<br/>");
+    return (
+      <Popover title="搜尋權重">
+        <div dangerouslySetInnerHTML={{
+             __html: str
+             }}/>
+      </Popover>
+    );
+  },
+
   render: function() {
     var brand = (<a href="#home">newsxu</a>);
     var style = {marginLeft: "9%"};
@@ -79,7 +90,10 @@ module.exports = React.createClass({
                 <input ref="searchInput" type="text"
                        style={{width: "35vw"}}
                        autoFocus className="form-control nav-news-search-bar" placeholder="Search" />
-                <Button type="submit"><Glyphicon glyph="search" /></Button>
+                <OverlayTrigger trigger="hover" placement="bottom"
+                                overlay={this.renderQueryWeights()}>
+                  <Button type="submit"><Glyphicon glyph="search" /></Button>
+                </OverlayTrigger>
               </div>
             </form>
             <Nav navbar right activeKey={this.props.navActiveKey}>

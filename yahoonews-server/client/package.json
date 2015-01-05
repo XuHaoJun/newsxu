@@ -7,7 +7,7 @@
   },
   "dependencies": {
     "lodash": "*",
-    "react": "*",
+    "react": "0.12.2",
     "jquery": "*",
     "bootstrap": "*",
     "react-bootstrap": "*",

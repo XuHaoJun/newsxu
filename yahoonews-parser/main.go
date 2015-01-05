@@ -4,7 +4,7 @@ import (
 	"github.com/guotie/sego"
 	"github.com/xuhaojun/newsxu"
 	"gopkg.in/mgo.v2"
-	"gopkg.in/mgo.v2/bson"
+	//"gopkg.in/mgo.v2/bson"
 	"log"
 	"runtime"
 	"sync"
@@ -37,7 +37,7 @@ func main() {
 	segmenter.LoadDictionary("../data/dictionary.txt")
 	stopword.LoadDictionary("../data/stopwords-utf8.txt")
 	startTime := time.Now()
-	log.Println("建立 inverted index 和 中文分詞")
+	log.Println("建立 inverted index")
 	invertedIndex := newsxu.NewInvertedIndexBySego(docs, segmenter, stopword)
 	// for k, v := range invertedIndex {
 	// 	fmt.Print(k)
@@ -48,7 +48,7 @@ func main() {
 	// 	}
 	// 	fmt.Print("]\n")
 	// }
-	log.Println("完成 inverted index 和 中文分詞, 共耗時： ", time.Since(startTime))
+	log.Println("完成 inverted index 長度：", len(invertedIndex), "共耗時：", time.Since(startTime))
 
 	startTime = time.Now()
 	log.Println("建立 weight 表")
@@ -65,7 +65,7 @@ func main() {
 	// }
 
 	startTime = time.Now()
-	log.Println("更新資料庫")
+	log.Println("更新資料庫和建立索引")
 	session, err := mgo.Dial("127.0.0.1")
 	if err != nil {
 		log.Fatalln(err)
@@ -77,13 +77,34 @@ func main() {
 	go func() {
 		session2 := session.Clone()
 		invertC := session2.DB("sego").C("invertedIndex")
+		invertC.DropCollection()
+		bulk := invertC.Bulk()
+		bulk.Unordered()
+		count := 0
 		for term, nodes := range invertedIndex {
 			nodeDumpDBs := make([]newsxu.NodeDumpDB, len(nodes))
 			for i, node := range nodes {
 				nodeDumpDBs[i] = node.DumpDB()
 			}
-			invertC.Upsert(bson.M{"id": term},
-				newsxu.InvertedIndexNodeDumpDB{term, nodeDumpDBs})
+			bulk.Insert(newsxu.InvertedIndexNodeDumpDB{term, nodeDumpDBs})
+			count++
+			if count%1000 == 0 {
+				_, err := bulk.Run()
+				if err != nil {
+					log.Println(err)
+				}
+				bulk = invertC.Bulk()
+				bulk.Unordered()
+				count = 0
+			}
+			//invertC.Upsert(bson.M{"id": term},
+			//  newsxu.InvertedIndexNodeDumpDB{term, nodeDumpDBs})
+		}
+		if count > 0 {
+			_, err := bulk.Run()
+			if err != nil {
+				log.Println(err)
+			}
 		}
 		index := mgo.Index{
 			Key:        []string{"id"},
@@ -100,10 +121,35 @@ func main() {
 	go func() {
 		session2 := session.Clone()
 		weightC := session2.DB("sego").C("documentWeights")
+		//for docId, weights := range docWeights {
+		//	weightC.Upsert(bson.M{"id": docId},
+		//		newsxu.DocumentWeightsDumpDB{docId, weights})
+		//}
+		weightC.DropCollection()
+		// bulk
+		bulk := weightC.Bulk()
+		bulk.Unordered()
+		count := 0
 		for docId, weights := range docWeights {
-			weightC.Upsert(bson.M{"id": docId},
-				newsxu.DocumentWeightsDumpDB{docId, weights})
+			bulk.Insert(newsxu.DocumentWeightsDumpDB{docId, weights})
+			count++
+			if count%1000 == 0 {
+				_, err := bulk.Run()
+				if err != nil {
+					log.Println(err)
+				}
+				bulk = weightC.Bulk()
+				bulk.Unordered()
+				count = 0
+			}
 		}
+		if count > 0 {
+			_, err := bulk.Run()
+			if err != nil {
+				log.Println(err)
+			}
+		}
+		// end of bulk
 		index := mgo.Index{
 			Key:        []string{"id"},
 			Unique:     true,

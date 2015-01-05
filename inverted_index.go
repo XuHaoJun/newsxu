@@ -58,18 +58,22 @@ func NewInvertedIndexBySego(docs []Documenter, segmenter *sego.Segmenter, stopwo
 			term := token.Text()
 			list := invertedIndex[term]
 			if list == nil {
-				list = []*Node{&Node{doc.Id(), 1, s.Start(), s.End(), doc}}
+				newNode := &Node{doc.Id(), 1, []TermPosition{TermPosition{s.Start(), s.End()}}, doc}
+				list = []*Node{newNode}
 			} else {
 				isDupNode := false
 				for _, node := range list {
 					if node.Id == doc.Id() {
 						node.TermFrequency += 1
+						newPosition := TermPosition{s.Start(), s.End()}
+						node.TermPositions = append(node.TermPositions, newPosition)
 						isDupNode = true
 						break
 					}
 				}
 				if !isDupNode {
-					list = append(list, &Node{doc.Id(), 1, s.Start(), s.End(), doc})
+					newNode := &Node{doc.Id(), 1, []TermPosition{TermPosition{s.Start(), s.End()}}, doc}
+					list = append(list, newNode)
 				}
 			}
 			invertedIndex[term] = list

@@ -1,10 +1,14 @@
 package newsxu
 
+type TermPosition struct {
+	Start int `bson:"start" json:"start"`
+	End   int `bson:"end" json:"end"`
+}
+
 type Node struct {
 	Id            string
 	TermFrequency int
-	Start         int
-	End           int
+	TermPositions []TermPosition
 	Document      Documenter
 }
 
@@ -14,18 +18,16 @@ type InvertedIndexNodeDumpDB struct {
 }
 
 type NodeDumpDB struct {
-	DocumentId    string `bson:"documentId" json:"documentId"`
-	TermFrequency int    `bson:"termFrequency" json:"termFrequency"`
-	Start         int    `bson:"start"  json:"start"`
-	End           int    `bson:"end" json:"end"`
+	DocumentId    string         `bson:"documentId" json:"documentId"`
+	TermFrequency int            `bson:"termFrequency" json:"termFrequency"`
+	TermPositions []TermPosition `bson:"termPositions" json:"termPositions"`
 }
 
 func (n *Node) DumpDB() NodeDumpDB {
 	return NodeDumpDB{
 		n.Id,
 		n.TermFrequency,
-		n.Start,
-		n.End,
+		n.TermPositions,
 	}
 }
 
@@ -33,8 +35,7 @@ func (n *NodeDumpDB) Load() *Node {
 	return &Node{
 		n.DocumentId,
 		n.TermFrequency,
-		n.Start,
-		n.End,
+		n.TermPositions,
 		nil,
 	}
 }

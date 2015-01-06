@@ -68,7 +68,7 @@ module.exports = React.createClass({
   renderQueryWeights: function() {
     var str = JSON.stringify(this.state.queryWeights, undefined, 2).replace(/\n/g, "<br/>");
     return (
-      <Popover title="搜尋權重">
+      <Popover>
         <div dangerouslySetInnerHTML={{
              __html: str
              }}/>

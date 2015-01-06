@@ -48,7 +48,8 @@ gulp.task('jsx:watch', function() {
   gulp.watch('./src/js/**/*.jsx', ['jsx:build']);
 });
 
-var cssFiles = ['./src/css/**/*.styl', 'node_modules/bootstrap/dist/css/bootstrap.min.css'];
+var cssFiles = ['./src/css/**/*.styl', 'node_modules/bootstrap/dist/css/bootstrap.min.css',
+  'node_modules/bootstrap-material/dist/css/material.min.css'];
 gulp.task('css:build', function() {
   var bundleCssDest = (argv.bundleCssDest ? argv.bundleCssDest : '../public/assets/css');
   return gulp.src(cssFiles)

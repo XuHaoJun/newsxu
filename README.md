@@ -1,1 +1,1 @@
-[Try it Online!](https://newsxu.herokuapp.com)
+[Try it Online!](https://newsxu.fly.dev/)

@@ -1,33 +1,37 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/guotie/sego"
-	"github.com/xuhaojun/newsxu"
-	"gopkg.in/mgo.v2"
-	"gopkg.in/mgo.v2/bson"
 	"io"
 	"log"
 	"net/http"
 	"runtime"
 	"sort"
 	"time"
+
+	"github.com/guotie/sego"
+	mgo "github.com/qiniu/qmgo"
+	"github.com/samber/lo"
+	"github.com/xuhaojun/newsxu"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 var (
 	host         = flag.String("host", "", "HTTP服务器主机名")
 	port         = flag.Int("port", 8080, "HTTP服务器端口")
-	dict         = flag.String("dict", "../data/dictionary.txt", "词典文件")
+	dict         = flag.String("dict", "../data/dict.txt.small", "词典文件")
 	stopwordTxt  = flag.String("stopword", "../data/stopwords-utf8.txt", "")
 	staticFolder = flag.String("static_folder", "public", "静态页面存放的目录")
 	segmenter    = &sego.Segmenter{}
 	stopword     = &sego.StopWords{}
-	dbSession    = &mgo.Session{}
+	dbSession    = &mgo.Client{}
 )
 
 type News struct {
+	Id       string  `bson:"id" json:"id"`
 	Weight   float64 `bson:",omitempty" json:"weight"`
 	Title    string  `bson:"title" json:"title"`
 	URL      string  `bson:"url" json:"url"`
@@ -37,21 +41,20 @@ type News struct {
 
 type JsonResponse struct {
 	QueryWeights   newsxu.QueryWeights `json:"queryWeights"`
-	Newss          []News              `json:"newss"`
+	Newss          []*News             `json:"newss"`
 	SearchUsedTime string              `json:"searchUsedTime"`
 }
 
 func JsonRpcServer(w http.ResponseWriter, req *http.Request) {
 	//
-	session := dbSession.Clone()
-	defer session.Close()
-	db := session.DB("sego")
-	yahooNews := db.C("yahooNews")
+	session := dbSession
+	db := session.Database("sego")
+	yahooNews := db.Collection("yahooNews")
 	invertedIndex := &newsxu.InvertedIndexDB{
 		Key: "id",
-		C:   db.C("invertedIndex"),
+		C:   db.Collection("invertedIndex"),
 	}
-	documentWeights := db.C("documentWeights")
+	documentWeights := db.Collection("documentWeights")
 
 	//得到要分词的文本
 	queryText := req.URL.Query().Get("text")
@@ -79,11 +82,12 @@ func JsonRpcServer(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 	docWeights := make(map[string]map[string]float64, len(docIds))
-	for _, docId := range docIds {
-		documentWeightDump := newsxu.DocumentWeightsDumpDB{}
-		documentWeights.Find(bson.M{"id": docId}).One(&documentWeightDump)
-		docWeights[docId] = documentWeightDump.Weights
+	documentWeightDumps := []*newsxu.DocumentWeightsDumpDB{}
+	documentWeights.Find(context.Background(), bson.M{"id": bson.M{"$in": docIds}}).All(&documentWeightDumps)
+	for _, dump := range documentWeightDumps {
+		docWeights[dump.Id] = dump.Weights
 	}
+
 	finalWeights := make(map[string]float64, len(docIds))
 	for docId, docWeight := range docWeights {
 		finalWeights[docId] = 0
@@ -107,13 +111,21 @@ func JsonRpcServer(w http.ResponseWriter, req *http.Request) {
 	// log.Println("doc Weights", docWeights)
 	// log.Println("final Weights", finalWeightsSlice)
 
-	newss := make([]News, len(finalWeightsSlice))
-	for i, dw := range finalWeightsSlice {
-		yahooNews.Find(bson.M{"id": dw.Id}).
-			Select(bson.M{"title": 1, "provider": 1, "url": 1, "postTime": 1}).
-			One(&newss[i])
-		newss[i].Weight = dw.Weight
-	}
+	newss := []*News{}
+	yahooNews.Find(context.Background(),
+		bson.M{"id": bson.M{"$in": lo.Map(finalWeightsSlice, func(item newsxu.DocumentWeight, index int) string {
+			return item.Id
+		})}}).
+		Select(bson.M{"title": 1, "provider": 1, "url": 1, "postTime": 1, "id": 1}).
+		All(&newss)
+	lo.ForEach(newss, func(newsItem *News, index int) {
+		weight, found := lo.Find(finalWeightsSlice, func(weightItem newsxu.DocumentWeight) bool {
+			return newsItem.Id == weightItem.Id
+		})
+		if found {
+			newsItem.Weight = weight.Weight
+		}
+	})
 
 	response, _ := json.Marshal(
 		&JsonResponse{queryWeights, newss,
@@ -131,11 +143,12 @@ func main() {
 	flag.Parse()
 
 	var err error
-	dbSession, err = mgo.Dial("127.0.0.1")
+	dbSession, err = mgo.NewClient(context.Background(), newsxu.LoadMongoConfig())
 	if err != nil {
 		log.Fatalln(err)
 		panic(err)
 	}
+	defer dbSession.Close(context.Background())
 	segmenter.LoadDictionary(*dict)
 	stopword.LoadDictionary(*stopwordTxt)
 

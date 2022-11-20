@@ -18,6 +18,7 @@ var stylus = require('gulp-stylus');
 var prefix = require('gulp-autoprefixer');
 var concat = require('gulp-concat');
 var source = require('vinyl-source-stream');
+var babelify = require('babelify');
 
 gulp.task('default', ['watch']);
 
@@ -48,8 +49,7 @@ gulp.task('jsx:watch', function() {
   gulp.watch('./src/js/**/*.jsx', ['jsx:build']);
 });
 
-var cssFiles = ['./src/css/**/*.styl', 'node_modules/bootstrap/dist/css/bootstrap.min.css',
-  'node_modules/bootstrap-material/dist/css/material.min.css'];
+var cssFiles = ['./src/css/**/*.styl', 'node_modules/bootstrap/dist/css/bootstrap.min.css' ];
 gulp.task('css:build', function() {
   var bundleCssDest = (argv.bundleCssDest ? argv.bundleCssDest : '../public/assets/css');
   return gulp.src(cssFiles)
@@ -71,12 +71,14 @@ function scripts(watch) {
     basedir: __dirname,
     cache: {}, // required for watchify
     packageCache: {}, // required for watchify
+    paths: ['./node_modules'],
     fullPaths: watch // required to be true only for watchify
   });
   if(watch) {
     bundler = watchify(bundler);
   }
   bundler.transform(reactify);
+  bundler.transform(babelify);
   if(production) {
     bundler.transform({global: true}, uglifyify);
   }

@@ -1,10 +1,12 @@
 package newsxu
 
 import (
-	"github.com/guotie/sego"
-	"gopkg.in/mgo.v2"
-	"gopkg.in/mgo.v2/bson"
+	"context"
 	"sync"
+
+	"github.com/guotie/sego"
+	mgo "github.com/qiniu/qmgo"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 type InvertedIndex map[string][]*Node
@@ -17,7 +19,7 @@ type InvertedIndexDB struct {
 func (invDB *InvertedIndexDB) Find(term string) []*Node {
 	c := invDB.C
 	dump := &InvertedIndexNodeDumpDB{}
-	err := c.Find(bson.M{invDB.Key: term}).One(dump)
+	err := c.Find(context.Background(), bson.M{invDB.Key: term}).One(dump)
 	if err != nil {
 		return nil
 	}

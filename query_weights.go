@@ -1,8 +1,9 @@
 package newsxu
 
 import (
-	"github.com/guotie/sego"
 	"math"
+
+	"github.com/guotie/sego"
 )
 
 type QueryWeights map[string]float64

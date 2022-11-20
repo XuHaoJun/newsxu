@@ -2,7 +2,6 @@ package newsxu
 
 import (
 	"math"
-	"sync"
 )
 
 type DocumentWeightsDumpDB struct {
@@ -34,30 +33,24 @@ func (s FinalWeights) Swap(i, j int) {
 func NewDocumentWeightsByInvertedIndex(docs []Documenter, invertedIndex InvertedIndex) DocumentWeights {
 	docWeights := make(map[string]map[string]float64, len(docs))
 	docsLength := len(docs)
-	wg := &sync.WaitGroup{}
-	wg.Add(docsLength)
-	for _, d := range docs {
-		go func(doc Documenter) {
-			segmentsLength := len(doc.Segments())
-			termWeights := make(map[string]float64, segmentsLength)
-			for _, s := range doc.Segments() {
-				term := s.Token().Text()
-				df := float64(len(invertedIndex[term]))
-				idf := math.Log10(float64(docsLength) / df)
-				nodes := invertedIndex[term]
-				var tf float64
-				for _, node := range nodes {
-					if node.Id == doc.Id() {
-						tf = float64(node.TermFrequency) / float64(segmentsLength)
-						break
-					}
+	for _, doc := range docs {
+		segmentsLength := len(doc.Segments())
+		termWeights := make(map[string]float64, segmentsLength)
+		for _, s := range doc.Segments() {
+			term := s.Token().Text()
+			df := float64(len(invertedIndex[term]))
+			idf := math.Log10(float64(docsLength) / df)
+			nodes := invertedIndex[term]
+			var tf float64
+			for _, node := range nodes {
+				if node.Id == doc.Id() {
+					tf = float64(node.TermFrequency) / float64(segmentsLength)
+					break
 				}
-				termWeights[term] = tf * idf
 			}
-			docWeights[doc.Id()] = termWeights
-			wg.Done()
-		}(d)
+			termWeights[term] = tf * idf
+		}
+		docWeights[doc.Id()] = termWeights
 	}
-	wg.Wait()
 	return docWeights
 }

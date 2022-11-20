@@ -1,10 +1,16 @@
 package main
 
 import (
+	"context"
+
 	"github.com/guotie/sego"
+	mgo "github.com/qiniu/qmgo"
+	opts "github.com/qiniu/qmgo/options"
+	"github.com/samber/lo"
 	"github.com/xuhaojun/newsxu"
-	"gopkg.in/mgo.v2"
-	//"gopkg.in/mgo.v2/bson"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo/options"
+
 	"log"
 	"runtime"
 	"sync"
@@ -12,16 +18,16 @@ import (
 )
 
 func getYahooNewss() []*newsxu.News {
-	session, err := mgo.Dial("127.0.0.1")
+	session, err := mgo.NewClient(context.Background(), newsxu.LoadMongoConfig())
 	if err != nil {
 		log.Fatalln(err)
 		panic(err)
 	}
-	defer session.Close()
-	c := session.DB("sego").C("yahooNews")
+	defer session.Close(context.Background())
+	c := session.Database("sego").Collection("yahooNews")
 
 	var ynewss []*newsxu.News
-	c.Find(nil).All(&ynewss)
+	c.Find(context.Background(), bson.M{}).All(&ynewss)
 	return ynewss
 }
 
@@ -66,99 +72,94 @@ func main() {
 
 	startTime = time.Now()
 	log.Println("更新資料庫和建立索引")
-	session, err := mgo.Dial("127.0.0.1")
+	session, err := mgo.NewClient(context.Background(), newsxu.LoadMongoConfig())
 	if err != nil {
 		log.Fatalln(err)
 		panic(err)
 	}
+	defer session.Close(context.Background())
 
 	wg := &sync.WaitGroup{}
 	wg.Add(2)
 	go func() {
-		session2 := session.Clone()
-		invertC := session2.DB("sego").C("invertedIndex")
-		invertC.DropCollection()
+		invertC := session.Database("sego").Collection("invertedIndex")
+		invertC.DropCollection(context.Background())
 		bulk := invertC.Bulk()
-		bulk.Unordered()
+		bulk.SetOrdered(false)
 		count := 0
 		for term, nodes := range invertedIndex {
 			nodeDumpDBs := make([]newsxu.NodeDumpDB, len(nodes))
 			for i, node := range nodes {
 				nodeDumpDBs[i] = node.DumpDB()
 			}
-			bulk.Insert(newsxu.InvertedIndexNodeDumpDB{term, nodeDumpDBs})
+			bulk.InsertOne(newsxu.InvertedIndexNodeDumpDB{term, nodeDumpDBs})
 			count++
 			if count%1000 == 0 {
-				_, err := bulk.Run()
+				_, err := bulk.Run(context.Background())
 				if err != nil {
 					log.Println(err)
 				}
 				bulk = invertC.Bulk()
-				bulk.Unordered()
+				bulk.SetOrdered(false)
 				count = 0
 			}
 			//invertC.Upsert(bson.M{"id": term},
 			//  newsxu.InvertedIndexNodeDumpDB{term, nodeDumpDBs})
 		}
 		if count > 0 {
-			_, err := bulk.Run()
+			_, err := bulk.Run(context.Background())
 			if err != nil {
 				log.Println(err)
 			}
 		}
-		index := mgo.Index{
-			Key:        []string{"id"},
-			Unique:     true,
-			DropDups:   true,
-			Background: false,
-			Sparse:     true,
-		}
-		invertC.EnsureIndex(index)
-		session2.Close()
+		indexes := []opts.IndexModel{{
+			Key: []string{"id"},
+			IndexOptions: &options.IndexOptions{
+				Unique: lo.ToPtr(true),
+			},
+		}}
+		invertC.CreateIndexes(context.Background(), indexes)
 		wg.Done()
 	}()
 
 	go func() {
-		session2 := session.Clone()
-		weightC := session2.DB("sego").C("documentWeights")
+		weightC := session.Database("sego").Collection("documentWeights")
 		//for docId, weights := range docWeights {
 		//	weightC.Upsert(bson.M{"id": docId},
 		//		newsxu.DocumentWeightsDumpDB{docId, weights})
 		//}
-		weightC.DropCollection()
+		weightC.DropCollection(context.Background())
 		// bulk
 		bulk := weightC.Bulk()
-		bulk.Unordered()
+		bulk.SetOrdered(false)
 		count := 0
 		for docId, weights := range docWeights {
-			bulk.Insert(newsxu.DocumentWeightsDumpDB{docId, weights})
+			bulk.InsertOne(newsxu.DocumentWeightsDumpDB{docId, weights})
 			count++
 			if count%1000 == 0 {
-				_, err := bulk.Run()
+				_, err := bulk.Run(context.Background())
 				if err != nil {
 					log.Println(err)
 				}
 				bulk = weightC.Bulk()
-				bulk.Unordered()
+				bulk.SetOrdered(false)
 				count = 0
 			}
 		}
 		if count > 0 {
-			_, err := bulk.Run()
+			_, err := bulk.Run(context.Background())
 			if err != nil {
 				log.Println(err)
 			}
 		}
 		// end of bulk
-		index := mgo.Index{
-			Key:        []string{"id"},
-			Unique:     true,
-			DropDups:   true,
-			Background: false,
-			Sparse:     true,
-		}
-		weightC.EnsureIndex(index)
-		session2.Close()
+		indexes := []opts.IndexModel{{
+			Key: []string{"id"},
+			IndexOptions: &options.IndexOptions{
+				Unique: lo.ToPtr(true),
+			},
+		}}
+		weightC.CreateIndexes(context.Background(), indexes)
 		wg.Done()
 	}()
 	wg.Wait()
